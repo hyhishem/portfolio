@@ -1,0 +1,70 @@
+
+ === RAPPORT TEST  ===
+ 
+ --------------------------------------------------
+ === Fichier ERP ===
+ Date: 2026-03-09 07:16:41
+ Nombre de lignes lues : 825
+ Colonnes presentes : product_id, price
+ Aucun doublon sur product_id
+ 
+ VERIFICATION VALEURS MANQUANTES
+ -> product_id manquants  : 0
+ -> price manquants       : 0
+ -> Total manquants       : 0
+ OK - Aucune valeur manquante sur product_id et price
+ 
+ --------------------------------------------------
+ === Fichier CMS ===
+ Date: 2026-03-09 07:16:41
+ Nombre de lignes lues : 714
+ Colonnes presentes : id_web, total_sales, post_title
+ Aucun doublon sur id_web
+ 
+ VERIFICATION VALEURS MANQUANTES
+ -> id_web manquants       : 0
+ -> total_sales manquants  : 0
+ -> Total manquants        : 0
+ OK - Aucune valeur manquante sur id_web et total_sales
+ 
+ 
+ --------------------------------------------------
+ === Fichier Liaison ===
+ Date: 2026-03-09 07:16:41
+ Nombre de lignes lues : 734
+ Colonnes presentes : product_id, id_web
+ Aucun doublon sur les id
+ 
+ VERIFICATION VALEURS MANQUANTES
+ -> id_web manquants       : 0
+ -> product_id manquants  : 0
+ -> Total manquants        : 0
+ OK - Aucune valeur manquante sur id_web et product_id
+ 
+ --------------------------------------------------
+ === Fichier jointure ===
+ Date: 2026-03-09 07:16:50
+ Nombre de lignes lues : 714
+ Colonnes presentes : product_id, id_web, price, total_sales, post_title
+ Aucun doublon sur les id
+ 
+ VERIFICATION VALEURS MANQUANTES
+ -> id_web manquants       : 0
+ -> product_id manquants  : 0
+ -> Total manquants        : 0
+ OK - Aucune valeur manquante sur id_web et product_id
+ 
+ VOLUMETRIE DES DONNEES 
+ Nombre de lignes ERP avant jointure     : 825
+ Nombre de lignes CMS avant jointure     : 714
+ Nombre de lignes après jointure         : 714
+ OK - La volumétrie des données après les jointures est cohérente 
+ 
+ --------------------------------------------------
+ === Résultats ===
+ Date: 2026-03-09 07:17:07
+ CA : 70568.60 € 
+ -> Nombre de bouteilles premiums : 30
+ -> Nombre de bouteilles ordinaires : 684
+ -> Total (ordinaires + premiums) : 714
+ 

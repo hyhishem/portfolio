@@ -1,0 +1,301 @@
+id: projet10_fichier
+namespace: openclassroom.p10
+
+tasks:
+
+  - id: clean_all
+    type: io.kestra.plugin.core.flow.Parallel
+    tasks:
+
+  # ---------------- ERP ----------------
+      - id: clean_erp
+        type: io.kestra.plugin.jdbc.duckdb.Query
+        outputFiles:
+          - erp_clean.csv
+        sql: |
+          COPY (
+            SELECT DISTINCT ON (product_id) product_id,
+            ABS(TRY_CAST(price AS DOUBLE)) AS price
+            FROM read_xlsx('/app/storage/raw/Fichier_erp.xlsx', header=true, all_varchar=true)
+            WHERE product_id IS NOT NULL 
+                  AND price IS NOT NULL 
+          )
+          TO '{{ outputFiles["erp_clean.csv"] }}'
+          (HEADER, DELIMITER ',');
+        retry:
+          type: exponential          
+          maxAttempts: 5             
+          interval: PT30S            
+          maxInterval: PT5M          
+          maxDuration: PT30M
+
+    
+                                
+  # ---------------- CMS ----------------
+      - id: clean_cms
+        type: io.kestra.plugin.jdbc.duckdb.Query
+        outputFiles:
+          - cms_clean.csv
+        sql: |
+          COPY (
+            SELECT DISTINCT ON (sku, post_date)
+            sku AS id_web,
+            total_sales,
+            post_title
+            FROM read_xlsx('/app/storage/raw/Fichier_web.xlsx', header=true, all_varchar=true)
+            WHERE sku IS NOT NULL
+            ORDER BY sku, total_sales DESC
+          )
+          TO  '{{ outputFiles["cms_clean.csv"] }}'
+          (HEADER, DELIMITER ',');
+        retry:
+          type: exponential          
+          maxAttempts: 5             
+          interval: PT30S            
+          maxInterval: PT5M          
+          maxDuration: PT30M
+
+  # ---------------- LIAISON ----------------
+      - id: clean_liaison
+        type: io.kestra.plugin.jdbc.duckdb.Query
+        outputFiles:
+          - liaison_clean.csv
+        sql: |
+          COPY (
+            SELECT DISTINCT ON (product_id) *
+            FROM read_xlsx('/app/storage/raw/fichier_liaison.xlsx', header=true, all_varchar=true)
+            WHERE product_id IS NOT NULL 
+                  AND id_web IS NOT NULL   
+          )
+          TO  '{{ outputFiles["liaison_clean.csv"] }}'
+          (HEADER, DELIMITER ',');
+        retry:
+          type: exponential          
+          maxAttempts: 5             
+          interval: PT30S            
+          maxInterval: PT5M          
+          maxDuration: PT30M
+
+
+  - id: test_clean
+    type: io.kestra.plugin.scripts.python.Commands
+    containerImage: python:3.12-slim
+    beforeCommands:
+      - pip install pandas 
+    inputFiles:    
+      erp_clean.csv: "{{outputs.clean_erp.outputFiles['erp_clean.csv']}}"
+      cms_clean.csv: "{{outputs.clean_cms.outputFiles['cms_clean.csv']}}"
+      liaison_clean.csv: "{{outputs.clean_liaison.outputFiles['liaison_clean.csv']}}"
+
+      script.py: file:///app/storage/scripts/test_scripts/clean_test.py
+    outputFiles:
+      - rapport_test.txt
+    commands:
+      - python script.py
+
+
+  - id: Jointure
+    type: io.kestra.plugin.jdbc.duckdb.Query
+    outputFiles:
+     - jointure_ERP_CMS.csv
+    inputFiles:
+      erp_clean.csv: "{{outputs.clean_erp.outputFiles['erp_clean.csv']}}"
+      cms_clean.csv: "{{outputs.clean_cms.outputFiles['cms_clean.csv']}}"
+      liaison_clean.csv: "{{outputs.clean_liaison.outputFiles['liaison_clean.csv']}}"
+    sql: |
+        COPY (
+        SELECT l.product_id,
+         c.id_web,
+         e.price,
+         c.total_sales,
+         c.post_title
+        FROM read_csv( '{{ workingDir }}/cms_clean.csv', header=true) AS c
+        LEFT JOIN read_csv( '{{ workingDir }}/liaison_clean.csv', header=true) AS l 
+            ON c.id_web = l.id_web
+        LEFT JOIN read_csv('{{ workingDir }}/erp_clean.csv', header=true) AS e 
+            ON l.product_id = e.product_id
+        ORDER BY l.product_id ASC
+        )
+        TO  '{{ outputFiles["jointure_ERP_CMS.csv"] }}'        
+        (HEADER, DELIMITER ',');
+    retry:
+      type: exponential          
+      maxAttempts: 5             
+      interval: PT30S            
+      maxInterval: PT5M          
+      maxDuration: PT30M
+
+
+  - id: test_jointure
+    type: io.kestra.plugin.scripts.python.Commands
+    containerImage: python:3.12-slim
+    beforeCommands:
+      - pip install pandas
+    inputFiles:    
+      rapport_test.txt: "{{outputs.test_clean.outputFiles['rapport_test.txt']}}"
+      jointure.csv: "{{outputs.Jointure.outputFiles['jointure_ERP_CMS.csv']}}"
+      erp_clean.csv: "{{outputs.clean_erp.outputFiles['erp_clean.csv']}}"
+      cms_clean.csv: "{{outputs.clean_cms.outputFiles['cms_clean.csv']}}"
+      script.py: file:///app/storage/scripts/test_scripts/jointure_test.py
+    outputFiles:
+      - rapport_test.txt
+    commands:
+      - python script.py
+
+
+  - id: analyses
+    type: io.kestra.plugin.core.flow.Parallel
+    tasks:
+
+      - id: Chiffre_affaire
+        type: io.kestra.plugin.core.flow.Sequential
+        tasks:
+          - id: CA_par_bouteille
+            type: io.kestra.plugin.jdbc.duckdb.Query
+            outputFiles:
+              - CA_par_bouteille.csv
+            inputFiles:
+              jointure.csv:  "{{outputs.Jointure.outputFiles['jointure_ERP_CMS.csv']}}"
+            sql: |
+              COPY (
+              SELECT 
+                product_id,
+                id_web,
+                price,
+                total_sales,
+                post_title,
+                ROUND(price * total_sales, 2) AS ca_par_bouteille
+              FROM read_csv('{{ workingDir }}/jointure.csv' , header=true)
+              ORDER BY product_id ASC
+              )
+              TO '{{ outputFiles["CA_par_bouteille.csv"] }}'
+              (HEADER, DELIMITER ',');
+            retry:
+              type: exponential          
+              maxAttempts: 5             
+              interval: PT30S            
+              maxInterval: PT5M          
+              maxDuration: PT30M
+
+
+
+          - id: CA
+            type: io.kestra.plugin.jdbc.duckdb.Query
+            outputFiles:
+              - CA.csv
+            inputFiles:
+              CA_par_bouteille.csv:  "{{outputs.CA_par_bouteille.outputFiles['CA_par_bouteille.csv']}}"  
+            sql: |
+              COPY (
+                SELECT 
+                ROUND(SUM(ca_par_bouteille), 2) AS ca_global
+                FROM read_csv('{{ workingDir }}/CA_par_bouteille.csv', header=true)
+              )
+              TO  '{{ outputFiles["CA.csv"] }}'
+              (HEADER, DELIMITER ',');
+            retry:
+              type: exponential          
+              maxAttempts: 5             
+              interval: PT30S            
+              maxInterval: PT5M          
+              maxDuration: PT30M
+
+
+
+
+
+      - id: z_score_premium
+        type: io.kestra.plugin.scripts.python.Commands
+        containerImage: python:3.12-slim
+        beforeCommands:
+          - pip install pandas
+        inputFiles:    
+          jointure.csv: "{{outputs.Jointure.outputFiles['jointure_ERP_CMS.csv']}}"
+          script.py: file:///app/storage/scripts/z_score.py
+        outputFiles:
+          - Premiums.csv
+          - Ordinaires.csv
+        commands: 
+          - python script.py
+
+
+
+  - id: rapport_analyse
+    type: io.kestra.plugin.scripts.python.Commands
+    taskRunner:
+      type: io.kestra.plugin.scripts.runner.docker.Docker
+    containerImage: python:3.12-slim
+    beforeCommands:
+      - pip install pandas
+    inputFiles:
+      CA_par_bouteille.csv:  "{{outputs.CA_par_bouteille.outputFiles['CA_par_bouteille.csv']}}"      
+      Premiums.csv: "{{outputs.z_score_premium.outputFiles['Premiums.csv']}}"
+      Ordinaires.csv: "{{outputs.z_score_premium.outputFiles['Ordinaires.csv']}}"
+      CA.csv: "{{outputs.CA.outputFiles['CA.csv']}}"
+      rapport_test.txt: "{{outputs.test_jointure.outputFiles['rapport_test.txt']}}"
+      script.py: file:///app/storage/scripts/test_scripts/analyse_test.py
+    outputFiles:
+      - rapport_test.txt 
+    commands:
+      - python script.py
+
+
+
+
+  - id: Save_all
+    type: io.kestra.plugin.core.flow.Parallel
+    tasks:
+
+    - id: save_Ca_par_bouteille
+      type: io.kestra.plugin.scripts.shell.Commands
+      taskRunner:
+        type: io.kestra.plugin.core.runner.Process
+      inputFiles:    
+        CA_par_bouteille.csv: "{{ outputs.CA_par_bouteille.outputFiles['CA_par_bouteille.csv'] }}"      
+      commands:
+        - cp CA_par_bouteille.csv  /app/storage/output/CA_par_bouteille.csv
+
+ 
+
+    - id: save_premiums
+      type: io.kestra.plugin.scripts.shell.Commands
+      taskRunner:
+        type: io.kestra.plugin.core.runner.Process
+      inputFiles:    
+        premium.csv: "{{ outputs.z_score_premium.outputFiles['Premiums.csv'] }}"
+      commands:
+        - cp premium.csv  /app/storage/output/Premiums.csv
+
+
+    - id: save_ordinaire
+      type: io.kestra.plugin.scripts.shell.Commands
+      taskRunner:
+        type: io.kestra.plugin.core.runner.Process
+      inputFiles:    
+        ordinaires.csv: "{{ outputs.z_score_premium.outputFiles['Ordinaires.csv'] }}"  
+      commands:
+        - cp ordinaires.csv  /app/storage/output/Ordinaires.csv
+
+
+    - id: save_rapport
+      type: io.kestra.plugin.scripts.shell.Commands
+      taskRunner:
+        type: io.kestra.plugin.core.runner.Process
+      inputFiles:    
+        rapport.txt: "{{ outputs.rapport_analyse.outputFiles['rapport_test.txt'] }}"  
+      commands:
+        - cp rapport.txt  /app/storage/output/rapport_test.txt
+
+
+
+
+triggers:
+  - id: planification
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "00 13 5 * *"
+    timezone: Europe/Paris
+    description: "Exécution automatique tous les 15 du mois à 9h00"
+
+
+
+
