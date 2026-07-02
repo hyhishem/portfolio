@@ -1,6 +1,6 @@
-# Projets – Formation Data Engineering
+#  Data Engineering
 
-Bienvenue sur ce dépôt qui regroupe les projets réalisés dans le cadre de ma formation en **Data Engineering** d'openclassroom. 
+Bienvenue sur ce dépôt qui regroupe les projets réalisés dans le cadre de ma formation en **Data Engineering**. 
 
 
 ##  Compétences développées
