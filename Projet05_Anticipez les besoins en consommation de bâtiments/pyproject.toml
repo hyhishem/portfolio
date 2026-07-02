@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "conso batiment"
+version = "0.1.0"
+description = ""
+authors = ["hyhishem <001data2025@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+pandas = "^2.3.3"
+matplotlib = "^3.10.7"
+seaborn = "^0.13.2"
+scikit-learn = "^1.7.2"
+bentoml = "^1.4.30"
+jupyterlab-spellchecker = "^0.8.4"
+
+
+[tool.poetry.group.dev.dependencies]
+jupyterlab = "^4.4.10"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

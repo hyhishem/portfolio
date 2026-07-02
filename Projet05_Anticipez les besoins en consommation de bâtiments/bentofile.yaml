@@ -1,0 +1,21 @@
+service: "service:EnergyModel"
+
+labels:
+  owner: "HH"
+  project: "bentoml-demo"
+  
+include:
+  - "*.py"
+  - "best_model*"
+  
+exclude:
+  - "__pycache__"
+
+models:
+  - energy_rf_model:latest
+  
+python:
+  packages:
+    - scikit-learn
+    - pydantic
+    - bentoml

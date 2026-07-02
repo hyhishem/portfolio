@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "projet02-academy"
+version = "0.1.0"
+description = "Projet N°2 : Analysez des données de systèmes éducatifs"
+authors = ["Hishem H."]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+pandas = "^2.3.1"
+jupyterlab = "^4.4.5"
+numpy = "^2.3.2"
+matplotlib = "^3.10.5"
+seaborn = "^0.13.2"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
